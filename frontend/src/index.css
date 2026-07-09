@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .text-stroke-3 {
+    -webkit-text-stroke-width: 3px;
+    -webkit-text-stroke-color: rgba(0, 0, 0, 1);
+  }
+}
+
+body {
+  background: var(--bg, rgba(246, 255, 247, 1));
+}
