@@ -2,11 +2,9 @@ import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
   ManyToOne,
   OneToMany,
-  JoinColumn,
+  CreateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Message } from './message.entity';
@@ -14,23 +12,19 @@ import { Message } from './message.entity';
 @Entity('support_requests')
 export class SupportRequest {
   @PrimaryGeneratedColumn()
-  id: number;
+  _id: number;
 
-  @Column()
-  userId: number;
+  @Column({ name: 'userId' })
+  user: number;
 
-  @ManyToOne(() => User, (user) => user.supportRequests)
-  @JoinColumn({ name: 'userId' })
-  user: User;
-
-  @Column({ default: true })
-  isActive: boolean;
-
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'createdAt' })
   createdAt: Date;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @Column({ name: 'isActive', default: true })
+  isActive: boolean;
+
+  @ManyToOne(() => User, (user) => user.supportRequests)
+  userEntity: User;
 
   @OneToMany(() => Message, (message) => message.supportRequest)
   messages: Message[];

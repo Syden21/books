@@ -1,187 +1,178 @@
 import {
   Controller,
-  Get,
   Post,
+  Get,
   Body,
   Param,
-  Query,
   UseGuards,
-  Req,
-  ParseIntPipe,
+  Request,
+  Query,
 } from '@nestjs/common';
 import { SupportService } from './support.service';
-import { CreateSupportRequestDto } from './dto/create-support-request.dto';
-import { SendMessageDto } from './dto/send-message.dto';
-import { MarkMessagesReadDto } from './dto/mark-messages-read.dto';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
-import { AuthenticatedGuard } from '../../common/guards/authenticated.guard';
-import { Request } from 'express';
+import {
+  CreateSupportRequestClientDto,
+  SendMessageClientDto,
+  MarkMessagesAsReadClientDto,
+} from './dto/support.dto';
 
 @Controller('api')
-@UseGuards(AuthenticatedGuard)
 export class SupportController {
-  constructor(private readonly supportService: SupportService) {}
+  constructor(private supportService: SupportService) {}
 
-  @Post('client/support-requests')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
+  @Post('client/support-requests')
   async createSupportRequest(
-    @Req() req: Request,
-    @Body() createSupportRequestDto: CreateSupportRequestDto,
+    @Request() req,
+    @Body() data: CreateSupportRequestClientDto,
   ) {
-    const user = req.user as any;
-    const request = await this.supportService.createSupportRequest(
-      user.id,
-      createSupportRequestDto,
+    const supportRequest = await this.supportService.createSupportRequest({
+      user: req.user._id,
+      text: data.text,
+    });
+
+    const unreadCount = await this.supportService.getUnreadCount(
+      supportRequest._id,
+      req.user._id,
     );
 
     return {
-      id: request.id,
-      createdAt: request.createdAt,
-      isActive: request.isActive,
-      hasNewMessages: false,
+      id: supportRequest._id.toString(),
+      createdAt: supportRequest.createdAt.toISOString(),
+      isActive: supportRequest.isActive,
+      hasNewMessages: unreadCount > 0,
     };
   }
 
-  @Get('client/support-requests')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
+  @Get('client/support-requests')
   async getClientSupportRequests(
-    @Req() req: Request,
+    @Request() req,
     @Query('isActive') isActive?: string,
   ) {
-    const user = req.user as any;
-    const requests = await this.supportService.getClientSupportRequests(
-      user.id,
-      isActive !== undefined ? isActive === 'true' : undefined,
-    );
+    const isActiveBool =
+      isActive === 'true' ? true : isActive === 'false' ? false : undefined;
 
-    return Promise.all(
-      requests.map(async (request) => ({
-        id: request.id,
-        createdAt: request.createdAt,
+    const requests = await this.supportService.findSupportRequests({
+      user: req.user._id,
+      isActive: isActiveBool,
+    });
+
+    const result = [];
+    for (const request of requests) {
+      const unreadCount = await this.supportService.getUnreadCount(
+        request._id,
+        req.user._id,
+      );
+      result.push({
+        id: request._id.toString(),
+        createdAt: request.createdAt.toISOString(),
         isActive: request.isActive,
-        hasNewMessages: await this.supportService.hasNewMessages(
-          request.id,
-          user.id,
-        ),
-      })),
-    );
-  }
-
-  @Get('manager/support-requests')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.MANAGER)
-  async getManagerSupportRequests(@Query('isActive') isActive?: string) {
-    const requests = await this.supportService.getManagerSupportRequests(
-      isActive !== undefined ? isActive === 'true' : undefined,
-    );
-
-    return Promise.all(
-      requests.map(async (request) => ({
-        id: request.id,
-        createdAt: request.createdAt,
-        isActive: request.isActive,
-        hasNewMessages: await this.supportService.hasNewMessages(
-          request.id,
-          request.userId,
-        ),
-        client: {
-          id: request.user.id,
-          name: request.user.name,
-          email: request.user.email,
-          contactPhone: request.user.contactPhone,
-        },
-      })),
-    );
-  }
-
-  @Get('common/support-requests/:id/messages')
-  async getMessages(
-    @Req() req: Request,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    const user = req.user as any;
-    const request = await this.supportService.findSupportRequestById(id);
-
-    if (user.role === UserRole.CLIENT && request.userId !== user.id) {
-      throw new Error("You don't have access to this support request");
+        hasNewMessages: unreadCount > 0,
+      });
     }
 
-    const messages = await this.supportService.getMessages(id);
+    return result;
+  }
 
-    return messages.map((message) => ({
-      id: message.id,
-      sentAt: message.sentAt,
-      text: message.text,
-      readAt: message.readAt,
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.MANAGER)
+  @Get('manager/support-requests')
+  async getManagerSupportRequests(@Query('isActive') isActive?: string) {
+    const isActiveBool =
+      isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+
+    const requests = await this.supportService.findSupportRequests({
+      user: null,
+      isActive: isActiveBool,
+    });
+
+    const result = [];
+    for (const request of requests) {
+      const unreadCount = await this.supportService.getUnreadCount(
+        request._id,
+        request.user,
+      );
+      result.push({
+        id: request._id.toString(),
+        createdAt: request.createdAt.toISOString(),
+        isActive: request.isActive,
+        hasNewMessages: unreadCount > 0,
+        client: {
+          id: request.userEntity?._id?.toString(),
+          name: request.userEntity?.name,
+          email: request.userEntity?.email,
+          contactPhone: request.userEntity?.contactPhone,
+        },
+      });
+    }
+
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('common/support-requests/:id/messages')
+  async getMessages(@Param('id') id: string, @Request() req) {
+    const messages = await this.supportService.getMessages(parseInt(id));
+
+    return messages.map((msg) => ({
+      id: msg._id.toString(),
+      createdAt: msg.sentAt.toISOString(),
+      text: msg.text,
+      readAt: msg.readAt?.toISOString() || null,
       author: {
-        id: message.author.id,
-        name: message.author.name,
+        id: msg.authorEntity?._id?.toString() || msg.author.toString(),
+        name: msg.authorEntity?.name || 'Unknown',
       },
     }));
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('common/support-requests/:id/messages')
   async sendMessage(
-    @Req() req: Request,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() sendMessageDto: SendMessageDto,
+    @Param('id') id: string,
+    @Request() req,
+    @Body() data: SendMessageClientDto,
   ) {
-    const user = req.user as any;
-    const request = await this.supportService.findSupportRequestById(id);
+    const message = await this.supportService.sendMessage({
+      author: req.user._id,
+      supportRequest: parseInt(id),
+      text: data.text,
+    });
 
-    if (user.role === UserRole.CLIENT && request.userId !== user.id) {
-      throw new Error("You don't have access to this support request");
-    }
-
-    const message = await this.supportService.sendMessage(
-      id,
-      user.id,
-      sendMessageDto.text,
-    );
+    const author = await this.supportService['userRepository'].findOne({
+      where: { _id: message.author },
+    });
 
     return {
-      id: message.id,
-      sentAt: message.sentAt,
+      id: message._id.toString(),
+      createdAt: message.sentAt.toISOString(),
       text: message.text,
-      readAt: message.readAt,
+      readAt: message.readAt?.toISOString() || null,
       author: {
-        id: user.id,
-        name: user.name,
+        id: author?._id?.toString() || message.author.toString(),
+        name: author?.name || 'Unknown',
       },
     };
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('common/support-requests/:id/messages/read')
-  async markMessagesRead(
-    @Req() req: Request,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() markMessagesReadDto: MarkMessagesReadDto,
+  async markMessagesAsRead(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() data: MarkMessagesAsReadClientDto,
   ) {
-    const user = req.user as any;
-    const request = await this.supportService.findSupportRequestById(id);
-
-    if (user.role === UserRole.CLIENT && request.userId !== user.id) {
-      throw new Error("You don't have access to this support request");
-    }
-
-    await this.supportService.markMessagesAsRead(
-      id,
-      user.id,
-      new Date(markMessagesReadDto.createdBefore),
-    );
-
-    return { success: true };
-  }
-
-  @Post('manager/support-requests/:id/close')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.MANAGER)
-  async closeSupportRequest(@Param('id', ParseIntPipe) id: number) {
-    await this.supportService.closeSupportRequest(id);
+    await this.supportService.markMessagesAsRead({
+      user: req.user._id,
+      supportRequest: parseInt(id),
+      createdBefore: new Date(data.createdBefore),
+    });
     return { success: true };
   }
 }

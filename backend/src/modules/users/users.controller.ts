@@ -1,60 +1,69 @@
 import {
   Controller,
-  Get,
   Post,
+  Get,
   Body,
-  Param,
-  Query,
   UseGuards,
-  ParseIntPipe,
+  Request,
+  Query,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from './entities/user.entity';
 
 @Controller('api')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private usersService: UsersService) {}
 
-  @Post('admin/users')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @Post('admin/users')
   async createUser(@Body() createUserDto: CreateUserDto) {
     const user = await this.usersService.create({
-      ...createUserDto,
+      email: createUserDto.email,
       passwordHash: createUserDto.password,
+      name: createUserDto.name,
+      contactPhone: createUserDto.contactPhone,
+      role: createUserDto.role,
     });
 
-    // Убираем passwordHash из ответа
-    const { passwordHash, ...result } = user;
-    return result;
+    return {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      contactPhone: user.contactPhone,
+      role: user.role,
+    };
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Get('admin/users')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async findAllAdmin(@Query() searchParams: SearchUserDto) {
+  async getUsersAdmin(@Query() searchParams: SearchUserDto) {
     const users = await this.usersService.findAll(searchParams);
-    return users.map(({ passwordHash, ...user }) => user);
+    return users.map((user) => ({
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      contactPhone: user.contactPhone,
+      role: user.role,
+    }));
   }
 
-  @Get('manager/users')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.MANAGER)
-  async findAllManager(@Query() searchParams: SearchUserDto) {
+  @Get('manager/users')
+  async getUsersManager(@Query() searchParams: SearchUserDto) {
     const users = await this.usersService.findAll(searchParams);
-    return users.map(({ passwordHash, ...user }) => user);
-  }
-
-  @Get('admin/users/:id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const user = await this.usersService.findById(id);
-    const { passwordHash, ...result } = user;
-    return result;
+    return users.map((user) => ({
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      contactPhone: user.contactPhone,
+    }));
   }
 }

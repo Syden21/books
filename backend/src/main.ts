@@ -1,48 +1,42 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import * as session from 'express-session';
-import * as passport from 'passport';
+import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
+import { ValidationPipe } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+
+  const dataSource = app.get(DataSource);
+  try {
+    await dataSource.query('SELECT NOW()');
+    console.log('✅ Database connection successful');
+  } catch (error: any) {
+    console.error('❌ Database connection failed:', error.message);
+    process.exit(1);
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
       transform: true,
+      forbidNonWhitelisted: true,
     }),
   );
-
-  app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-  });
 
   app.use(cookieParser());
 
-  // Сессии
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || 'secret-key',
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        maxAge: 3600000, // 1 час
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-      },
-    }),
-  );
+  app.enableCors({
+    origin: ['http://localhost:3001', 'http://localhost:3002'],
+    credentials: true,
+  });
 
-  app.use(passport.initialize());
-  app.use(passport.session());
+  const host = configService.get('HTTP_HOST', 'localhost');
+  const port = configService.get('HTTP_PORT', 3001);
 
-  app.setGlobalPrefix('api');
-
-  await app.listen(process.env.PORT || 4000);
-  console.log(`Application is running on: ${await app.getUrl()}`);
+  await app.listen(port, host);
+  console.log(`🚀 Application is running on: http://${host}:${port}`);
 }
 bootstrap();

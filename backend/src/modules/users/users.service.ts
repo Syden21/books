@@ -5,35 +5,23 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
-import * as bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcrypt';
 import { User, UserRole } from './entities/user.entity';
-import { CreateUserDto } from './dto/create-user.dto';
-import { SearchUserDto } from './dto/search-user.dto';
-
-export interface SearchUserParams {
-  limit: number;
-  offset: number;
-  email: string;
-  name: string;
-  contactPhone: string;
-}
-
-export interface IUserService {
-  create(data: Partial<User>): Promise<User>;
-  findById(id: number): Promise<User>;
-  findByEmail(email: string): Promise<User>;
-  findAll(params: SearchUserParams): Promise<User[]>;
-}
+import {
+  IUserService,
+  SearchUserParams,
+} from './interfaces/user-service.interface';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UsersService implements IUserService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    private configService: ConfigService,
   ) {}
 
   async create(data: Partial<User>): Promise<User> {
-    // Проверка на существование пользователя с таким email
     const existingUser = await this.usersRepository.findOne({
       where: { email: data.email },
     });
@@ -42,35 +30,31 @@ export class UsersService implements IUserService {
       throw new ConflictException('User with this email already exists');
     }
 
-    // Хеширование пароля
-    const saltRounds = 10;
+    const saltRounds = this.configService.get('BCRYPT_SALT_ROUNDS', 10);
     const hashedPassword = await bcrypt.hash(data.passwordHash, saltRounds);
 
     const user = this.usersRepository.create({
       ...data,
       passwordHash: hashedPassword,
+      role: data.role || UserRole.CLIENT,
     });
 
     return this.usersRepository.save(user);
   }
 
   async findById(id: number): Promise<User> {
-    const user = await this.usersRepository.findOne({ where: { id } });
-
+    const user = await this.usersRepository.findOne({ where: { _id: id } });
     if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+      throw new NotFoundException(`User with id ${id} not found`);
     }
-
     return user;
   }
 
   async findByEmail(email: string): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { email } });
-
     if (!user) {
       throw new NotFoundException(`User with email ${email} not found`);
     }
-
     return user;
   }
 
@@ -82,11 +66,9 @@ export class UsersService implements IUserService {
     if (email) {
       where.email = Like(`%${email}%`);
     }
-
     if (name) {
       where.name = Like(`%${name}%`);
     }
-
     if (contactPhone) {
       where.contactPhone = Like(`%${contactPhone}%`);
     }
@@ -95,21 +77,24 @@ export class UsersService implements IUserService {
       where,
       take: limit,
       skip: offset,
-      order: { createdAt: 'DESC' },
+      order: { _id: 'ASC' },
     });
   }
 
-  async validateUser(email: string, password: string): Promise<User | null> {
-    const user = await this.usersRepository.findOne({ where: { email } });
+  async validatePassword(email: string, password: string): Promise<User> {
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('user.email = :email', { email })
+      .getOne();
 
     if (!user) {
-      return null;
+      throw new NotFoundException('User not found');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
     if (!isPasswordValid) {
-      return null;
+      throw new NotFoundException('Invalid credentials');
     }
 
     return user;

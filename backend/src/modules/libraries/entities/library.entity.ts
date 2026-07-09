@@ -6,26 +6,26 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { Book } from './book.entity';
+import { Book } from '../../books/entities/book.entity';
 
 @Entity('libraries')
 export class Library {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ length: 255 })
   name: string;
 
-  @Column()
+  @Column({ length: 255 })
   address: string;
 
-  @Column({ nullable: true, type: 'text' })
+  @Column({ type: 'text', nullable: true })
   description: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'createdAt' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updatedAt' })
   updatedAt: Date;
 
   @OneToMany(() => Book, (book) => book.library)

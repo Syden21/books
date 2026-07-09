@@ -2,10 +2,8 @@ import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
   ManyToOne,
-  JoinColumn,
+  CreateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { SupportRequest } from './support-request.entity';
@@ -13,34 +11,26 @@ import { SupportRequest } from './support-request.entity';
 @Entity('messages')
 export class Message {
   @PrimaryGeneratedColumn()
-  id: number;
+  _id: number;
 
-  @Column()
+  @Column({ name: 'authorId' })
+  author: number;
+
+  @Column({ name: 'supportRequestId' })
   supportRequestId: number;
 
-  @ManyToOne(() => SupportRequest, (request) => request.messages)
-  @JoinColumn({ name: 'supportRequestId' })
-  supportRequest: SupportRequest;
-
-  @Column()
-  authorId: number;
-
-  @ManyToOne(() => User, (user) => user.messages)
-  @JoinColumn({ name: 'authorId' })
-  author: User;
+  @CreateDateColumn({ name: 'sentAt' })
+  sentAt: Date;
 
   @Column({ type: 'text' })
   text: string;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ name: 'readAt', type: 'timestamp', nullable: true })
   readAt: Date;
 
-  @CreateDateColumn()
-  sentAt: Date;
+  @ManyToOne(() => User, (user) => user.messages)
+  authorEntity: User;
 
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @ManyToOne(() => SupportRequest, (support) => support.messages)
+  supportRequest: SupportRequest;
 }

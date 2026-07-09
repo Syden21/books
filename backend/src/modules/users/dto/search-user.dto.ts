@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, Min } from 'class-validator';
+import { IsOptional, IsString, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SearchUserDto {
@@ -6,13 +6,14 @@ export class SearchUserDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  limit?: number;
+  @Max(100)
+  limit?: number = 10;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  offset?: number;
+  offset?: number = 0;
 
   @IsOptional()
   @IsString()

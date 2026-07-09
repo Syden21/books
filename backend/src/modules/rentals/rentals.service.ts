@@ -1,140 +1,103 @@
 import {
   Injectable,
-  NotFoundException,
-  ForbiddenException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
-import { BookRental } from './entities/book-rental.entity';
-import { LibrariesService } from '../libraries/libraries.service';
-import { UsersService } from '../users/users.service';
-import { CreateRentalDto } from './dto/create-rental.dto';
+import { Repository } from 'typeorm';
+import { Rental, RentalStatus } from './entities/rental.entity';
+import { BooksService } from '../books/books.service';
+
+interface CreateRentalData {
+  userId: number;
+  libraryId: number;
+  bookId: number;
+  dateStart: string;
+  dateEnd: string;
+}
 
 @Injectable()
 export class RentalsService {
   constructor(
-    @InjectRepository(BookRental)
-    private rentalRepository: Repository<BookRental>,
-    private librariesService: LibrariesService,
-    private usersService: UsersService,
+    @InjectRepository(Rental)
+    private rentalsRepository: Repository<Rental>,
+    private booksService: BooksService,
   ) {}
 
-  async createRental(
-    userId: number,
-    data: CreateRentalDto,
-  ): Promise<BookRental> {
-    await this.usersService.findById(userId);
+  async create(data: CreateRentalData): Promise<Rental> {
+    const { userId, libraryId, bookId, dateStart, dateEnd } = data;
 
-    const book = await this.librariesService.findBookById(data.bookId);
+    const startDate = new Date(dateStart);
+    const endDate = new Date(dateEnd);
+    const now = new Date();
 
+    if (startDate < now) {
+      throw new BadRequestException('Start date must be in the future');
+    }
+    if (endDate <= startDate) {
+      throw new BadRequestException('End date must be after start date');
+    }
+    if (endDate > new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)) {
+      throw new BadRequestException('Rental period cannot exceed 1 year');
+    }
+
+    const book = await this.booksService.findById(bookId);
     if (!book.isAvailable || book.availableCopies <= 0) {
       throw new BadRequestException('Book is not available for rental');
     }
 
-    const startDate = new Date(data.dateStart);
-    const endDate = new Date(data.dateEnd);
+    const existingRental = await this.rentalsRepository.findOne({
+      where: {
+        userId,
+        bookId,
+        status: RentalStatus.ACTIVE,
+      },
+    });
 
-    if (startDate >= endDate) {
-      throw new BadRequestException('Start date must be before end date');
+    if (existingRental) {
+      throw new BadRequestException(
+        'You already have an active rental of this book',
+      );
     }
 
-    if (startDate < new Date()) {
-      throw new BadRequestException('Start date must be in the future');
-    }
-
-    const rental = this.rentalRepository.create({
+    const rental = this.rentalsRepository.create({
       userId,
-      libraryId: data.libraryId,
-      bookId: data.bookId,
+      libraryId,
+      bookId,
       dateStart: startDate,
       dateEnd: endDate,
-      status: 'reserved',
+      status: RentalStatus.RESERVED,
     });
 
-    await this.librariesService.updateAvailableCopies(data.bookId, -1);
+    await this.booksService.updateAvailability(bookId, -1);
 
-    return this.rentalRepository.save(rental);
+    return this.rentalsRepository.save(rental);
   }
 
-  async getRentalById(
-    id: number,
-    userId: number,
-    userRole: string,
-  ): Promise<BookRental> {
-    const rental = await this.rentalRepository.findOne({
-      where: { id },
-      relations: ['user', 'book', 'library'],
-    });
-
+  async updateStatus(id: number, status: RentalStatus): Promise<Rental> {
+    const rental = await this.rentalsRepository.findOne({ where: { id } });
     if (!rental) {
-      throw new NotFoundException(`Rental with ID ${id} not found`);
+      throw new NotFoundException(`Rental with id ${id} not found`);
     }
 
-    if (userRole === 'client' && rental.userId !== userId) {
-      throw new ForbiddenException('You can only view your own rentals');
-    }
-
-    return rental;
-  }
-
-  async getUserRentals(userId: number): Promise<BookRental[]> {
-    await this.usersService.findById(userId);
-
-    return this.rentalRepository.find({
-      where: { userId },
-      relations: ['book', 'library'],
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async getAllRentals(): Promise<BookRental[]> {
-    return this.rentalRepository.find({
-      relations: ['user', 'book', 'library'],
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async updateRentalStatus(
-    id: number,
-    status: 'reserved' | 'active' | 'completed' | 'cancelled',
-    userId: number,
-    userRole: string,
-  ): Promise<BookRental> {
-    const rental = await this.getRentalById(id, userId, userRole);
-
-    if (status === 'cancelled' && userRole === 'client') {
-      if (rental.status !== 'reserved') {
-        throw new BadRequestException('Only reserved rentals can be cancelled');
-      }
-      await this.librariesService.updateAvailableCopies(rental.bookId, 1);
-    }
-
-    if (userRole === 'client' && status !== 'cancelled') {
-      throw new ForbiddenException('You can only cancel your rentals');
+    if (
+      (status === RentalStatus.CANCELLED ||
+        status === RentalStatus.COMPLETED) &&
+      rental.status !== RentalStatus.COMPLETED &&
+      rental.status !== RentalStatus.CANCELLED
+    ) {
+      await this.booksService.updateAvailability(rental.bookId, 1);
     }
 
     rental.status = status;
-    return this.rentalRepository.save(rental);
+    return this.rentalsRepository.save(rental);
   }
 
-  async getActiveRentals(): Promise<BookRental[]> {
-    return this.rentalRepository.find({
-      where: {
-        status: 'active',
-        dateEnd: MoreThan(new Date()),
-      },
-      relations: ['user', 'book', 'library'],
-    });
-  }
-
-  async checkOverdueRentals(): Promise<BookRental[]> {
-    return this.rentalRepository.find({
-      where: {
-        status: 'active',
-        dateEnd: MoreThan(new Date()),
-      },
-      relations: ['user', 'book'],
+  async findByUser(userId: number): Promise<Rental[]> {
+    return this.rentalsRepository.find({
+      where: { userId },
+      relations: ['book', 'library'],
+      order: { createdAt: 'DESC' },
     });
   }
 }

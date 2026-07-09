@@ -3,56 +3,52 @@ import {
   Post,
   Body,
   UseGuards,
-  Req,
-  Res,
+  Request,
   Get,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
-import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
+import { LocalAuthGuard } from './guards/local-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
-import { UsersService } from '../users/users.service';
-import { UserRole } from '../users/entities/user.entity';
+import { LoginDto } from './dto/login.dto';
 
-@Controller('api/auth')
+@Controller('api')
 export class AuthController {
-  constructor(
-    private authService: AuthService,
-    private usersService: UsersService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
-  @Post('login')
-  @UseGuards(AuthGuard('local'))
-  async login(@Req() req: Request) {
-    return this.authService.login(req.user as any);
-  }
-
-  @Post('logout')
-  @UseGuards(AuthGuard('session'))
-  async logout(@Req() req: Request, @Res() res: Response) {
-    req.logout(() => {});
-    res.clearCookie('connect.sid');
-    return res.json({ success: true });
+  @UseGuards(LocalAuthGuard)
+  @Post('auth/login')
+  async login(@Request() req, @Body() loginDto: LoginDto) {
+    return this.authService.login(req.user);
   }
 
   @Post('client/register')
   async register(@Body() registerDto: RegisterDto) {
-    const user = await this.usersService.create({
-      ...registerDto,
-      passwordHash: registerDto.password,
-      role: UserRole.CLIENT,
-    });
-
-    // Убираем passwordHash из ответа
-    const { passwordHash, ...result } = user;
-    return result;
+    const user = await this.authService.register(registerDto);
+    return {
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+    };
   }
 
-  @Get('me')
-  @UseGuards(AuthGuard('session'))
-  async getCurrentUser(@Req() req: Request) {
-    const user = req.user as any;
-    const { passwordHash, ...result } = user;
-    return result;
+  @UseGuards(JwtAuthGuard)
+  @Post('auth/logout')
+  async logout() {
+    await this.authService.logout();
+    return {};
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('auth/profile')
+  getProfile(@Request() req) {
+    const user = req.user;
+    return {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      contactPhone: user.contactPhone,
+      role: user.role,
+    };
   }
 }

@@ -1,7 +1,7 @@
 import { IsOptional, IsString, IsNumber, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
-export class SearchBooksDto {
+export class SearchBookDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -16,7 +16,7 @@ export class SearchBooksDto {
   title?: string;
 
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   availableOnly?: boolean;
 }

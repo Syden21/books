@@ -1,12 +1,12 @@
-import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, MaxLength } from 'class-validator';
 
 export class CreateLibraryDto {
   @IsString()
-  @IsNotEmpty()
+  @MaxLength(255)
   name: string;
 
   @IsString()
-  @IsNotEmpty()
+  @MaxLength(255)
   address: string;
 
   @IsOptional()

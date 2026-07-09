@@ -1,12 +1,12 @@
-import { IsNumber, IsDateString, IsNotEmpty } from 'class-validator';
+import { IsNumber, IsDateString, Min } from 'class-validator';
 
 export class CreateRentalDto {
   @IsNumber()
-  @IsNotEmpty()
+  @Min(1)
   bookId: number;
 
   @IsNumber()
-  @IsNotEmpty()
+  @Min(1)
   libraryId: number;
 
   @IsDateString()

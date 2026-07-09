@@ -1,12 +1,5 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  OneToMany,
-} from 'typeorm';
-import { BookRental } from '../../rentals/entities/book-rental.entity';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Rental } from '../../rentals/entities/rental.entity';
 import { SupportRequest } from '../../support/entities/support-request.entity';
 import { Message } from '../../support/entities/message.entity';
 
@@ -19,37 +12,27 @@ export enum UserRole {
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
-  id: number;
+  _id: number;
 
-  @Column({ unique: true })
+  @Column({ unique: true, length: 255 })
   email: string;
 
-  @Column()
+  @Column({ name: 'passwordHash', length: 255 })
   passwordHash: string;
 
-  @Column()
+  @Column({ length: 100 })
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'contactPhone', length: 20, nullable: true })
   contactPhone: string;
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.CLIENT,
-  })
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.CLIENT })
   role: UserRole;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @OneToMany(() => Rental, (rental) => rental.user)
+  rentals: Rental[];
 
-  @UpdateDateColumn()
-  updatedAt: Date;
-
-  @OneToMany(() => BookRental, (rental) => rental.user)
-  rentals: BookRental[];
-
-  @OneToMany(() => SupportRequest, (request) => request.user)
+  @OneToMany(() => SupportRequest, (support) => support.user)
   supportRequests: SupportRequest[];
 
   @OneToMany(() => Message, (message) => message.author)

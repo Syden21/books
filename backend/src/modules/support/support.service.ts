@@ -1,215 +1,234 @@
 import {
   Injectable,
   NotFoundException,
-  BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, MoreThan, LessThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SupportRequest } from './entities/support-request.entity';
 import { Message } from './entities/message.entity';
-import { UsersService } from '../users/users.service';
-import { CreateSupportRequestDto } from './dto/create-support-request.dto';
-import { UserRole } from '../users/entities/user.entity';
-
-export interface GetChatListParams {
-  userId: number | null;
-  isActive?: boolean;
-}
+import { User, UserRole } from '../users/entities/user.entity';
+import {
+  ISupportRequestService,
+  ISupportRequestClientService,
+  ISupportRequestEmployeeService,
+} from './interfaces/support.interface';
+import {
+  CreateSupportRequestDto,
+  SendMessageDto,
+  MarkMessagesAsReadDto,
+  GetChatListParams,
+} from './dto/support.dto';
 
 @Injectable()
-export class SupportService {
+export class SupportService
+  implements
+    ISupportRequestService,
+    ISupportRequestClientService,
+    ISupportRequestEmployeeService
+{
   constructor(
     @InjectRepository(SupportRequest)
     private supportRequestRepository: Repository<SupportRequest>,
     @InjectRepository(Message)
     private messageRepository: Repository<Message>,
-    private usersService: UsersService,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     private eventEmitter: EventEmitter2,
   ) {}
 
-  async createSupportRequest(
-    userId: number,
-    data: CreateSupportRequestDto,
-  ): Promise<SupportRequest> {
-    await this.usersService.findById(userId);
-
-    const supportRequest = this.supportRequestRepository.create({
-      userId,
-      isActive: true,
-    });
-
-    const savedRequest =
-      await this.supportRequestRepository.save(supportRequest);
-
-    const message = this.messageRepository.create({
-      supportRequestId: savedRequest.id,
-      authorId: userId,
-      text: data.text,
-    });
-
-    await this.messageRepository.save(message);
-
-    return savedRequest;
-  }
-
-  async getClientSupportRequests(
-    userId: number,
-    isActive?: boolean,
+  async findSupportRequests(
+    params: GetChatListParams,
   ): Promise<SupportRequest[]> {
-    await this.usersService.findById(userId);
-
-    const where: any = { userId };
-    if (isActive !== undefined) {
-      where.isActive = isActive;
-    }
-
-    return this.supportRequestRepository.find({
-      where,
-      relations: ['messages'],
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async getManagerSupportRequests(
-    isActive?: boolean,
-  ): Promise<SupportRequest[]> {
+    const { user, isActive } = params;
     const where: any = {};
+
+    if (user) {
+      where.user = user;
+    }
     if (isActive !== undefined) {
       where.isActive = isActive;
     }
 
     return this.supportRequestRepository.find({
       where,
-      relations: ['user', 'messages'],
+      relations: ['messages', 'userEntity'],
       order: { createdAt: 'DESC' },
     });
   }
 
-  async closeSupportRequest(requestId: number): Promise<void> {
-    const request = await this.findSupportRequestById(requestId);
-    request.isActive = false;
-    await this.supportRequestRepository.save(request);
-  }
-
-  async findSupportRequestById(id: number): Promise<SupportRequest> {
-    const request = await this.supportRequestRepository.findOne({
-      where: { id },
-      relations: ['user', 'messages', 'messages.author'],
+  async sendMessage(data: SendMessageDto): Promise<Message> {
+    const supportRequest = await this.supportRequestRepository.findOne({
+      where: { _id: data.supportRequest },
     });
 
-    if (!request) {
-      throw new NotFoundException(`Support request with ID ${id} not found`);
+    if (!supportRequest) {
+      throw new NotFoundException('Support request not found');
     }
 
-    return request;
-  }
+    if (!supportRequest.isActive) {
+      throw new ForbiddenException('This support request is closed');
+    }
 
-  async getMessages(supportRequestId: number): Promise<Message[]> {
-    const request = await this.findSupportRequestById(supportRequestId);
-    return request.messages;
-  }
+    const author = await this.userRepository.findOne({
+      where: { _id: data.author },
+    });
 
-  async sendMessage(
-    supportRequestId: number,
-    authorId: number,
-    text: string,
-  ): Promise<Message> {
-    const request = await this.findSupportRequestById(supportRequestId);
-
-    if (!request.isActive) {
-      throw new BadRequestException('This support request is closed');
+    if (!author) {
+      throw new NotFoundException('User not found');
     }
 
     const message = this.messageRepository.create({
-      supportRequestId,
-      authorId,
-      text,
+      author: data.author,
+      supportRequestId: data.supportRequest,
+      text: data.text,
     });
 
     const savedMessage = await this.messageRepository.save(message);
 
-    this.eventEmitter.emit('message.created', {
-      supportRequest: request,
+    this.eventEmitter.emit('message.sent', {
+      supportRequest,
       message: savedMessage,
     });
 
     return savedMessage;
   }
 
-  async markMessagesAsRead(
-    supportRequestId: number,
-    userId: number,
-    createdBefore: Date,
-  ): Promise<void> {
-    const request = await this.findSupportRequestById(supportRequestId);
-    const user = await this.usersService.findById(userId);
+  async getMessages(supportRequestId: number): Promise<Message[]> {
+    return this.messageRepository.find({
+      where: { supportRequestId },
+      relations: ['authorEntity'],
+      order: { sentAt: 'ASC' },
+    });
+  }
 
-    let whereCondition: any = {
-      supportRequestId,
-      readAt: null,
-      sentAt: LessThan(createdBefore),
+  subscribe(
+    handler: (supportRequest: SupportRequest, message: Message) => void,
+  ): () => void {
+    this.eventEmitter.on('message.sent', handler);
+    return () => {
+      this.eventEmitter.off('message.sent', handler);
     };
+  }
 
-    if (user.role === UserRole.CLIENT) {
-      whereCondition = {
-        ...whereCondition,
-        authorId: request.userId !== userId,
-      };
-    } else {
-      whereCondition = {
-        ...whereCondition,
-        authorId: request.userId,
-      };
+  async createSupportRequest(
+    data: CreateSupportRequestDto,
+  ): Promise<SupportRequest> {
+    const supportRequest = this.supportRequestRepository.create({
+      user: data.user,
+      isActive: true,
+    });
+
+    const savedRequest =
+      await this.supportRequestRepository.save(supportRequest);
+
+    await this.sendMessage({
+      author: data.user,
+      supportRequest: savedRequest._id,
+      text: data.text,
+    });
+
+    return savedRequest;
+  }
+
+  async markMessagesAsRead(params: MarkMessagesAsReadDto): Promise<void> {
+    const { user, supportRequest, createdBefore } = params;
+
+    const userEntity = await this.userRepository.findOne({
+      where: { _id: user },
+    });
+    if (!userEntity) {
+      throw new NotFoundException('User not found');
     }
 
-    await this.messageRepository.update(whereCondition, {
-      readAt: new Date(),
-    });
+    const query = this.messageRepository
+      .createQueryBuilder('message')
+      .update(Message)
+      .set({ readAt: new Date() })
+      .where('message.supportRequestId = :supportRequest', { supportRequest })
+      .andWhere('message.readAt IS NULL')
+      .andWhere('message.sentAt <= :createdBefore', { createdBefore });
+
+    if (userEntity.role === UserRole.CLIENT) {
+      const employees = await this.userRepository.find({
+        where: [{ role: UserRole.ADMIN }, { role: UserRole.MANAGER }],
+      });
+      const employeeIds = employees.map((e) => e._id);
+      if (employeeIds.length > 0) {
+        query.andWhere('message.author IN (:...employeeIds)', { employeeIds });
+      } else {
+        return;
+      }
+    } else {
+      query.andWhere('message.author = :user', { user });
+    }
+
+    await query.execute();
   }
 
   async getUnreadCount(
     supportRequestId: number,
     userId: number,
   ): Promise<number> {
-    const request = await this.findSupportRequestById(supportRequestId);
-    const user = await this.usersService.findById(userId);
-
-    let whereCondition: any = {
-      supportRequestId,
-      readAt: null,
-    };
-
-    if (user.role === UserRole.CLIENT) {
-      whereCondition = {
-        ...whereCondition,
-        authorId: request.userId !== userId,
-      };
-    } else {
-      whereCondition = {
-        ...whereCondition,
-        authorId: request.userId,
-      };
+    const userEntity = await this.userRepository.findOne({
+      where: { _id: userId },
+    });
+    if (!userEntity) {
+      throw new NotFoundException('User not found');
     }
 
-    return this.messageRepository.count({ where: whereCondition });
+    const query = this.messageRepository
+      .createQueryBuilder('message')
+      .where('message.supportRequestId = :supportRequestId', {
+        supportRequestId,
+      })
+      .andWhere('message.readAt IS NULL');
+
+    if (userEntity.role === UserRole.CLIENT) {
+      const employees = await this.userRepository.find({
+        where: [{ role: UserRole.ADMIN }, { role: UserRole.MANAGER }],
+      });
+      const employeeIds = employees.map((e) => e._id);
+      if (employeeIds.length > 0) {
+        query.andWhere('message.author IN (:...employeeIds)', { employeeIds });
+      } else {
+        return 0;
+      }
+    } else {
+      query.andWhere('message.author = :userId', { userId });
+    }
+
+    return query.getCount();
   }
 
-  async hasNewMessages(
-    supportRequestId: number,
-    userId: number,
-  ): Promise<boolean> {
-    const count = await this.getUnreadCount(supportRequestId, userId);
-    return count > 0;
+  async getUnreadCountEmployee(supportRequestId: number): Promise<number> {
+    const query = this.messageRepository
+      .createQueryBuilder('message')
+      .where('message.supportRequestId = :supportRequestId', {
+        supportRequestId,
+      })
+      .andWhere('message.readAt IS NULL');
+
+    const supportRequest = await this.supportRequestRepository.findOne({
+      where: { _id: supportRequestId },
+    });
+    if (!supportRequest) {
+      throw new NotFoundException('Support request not found');
+    }
+    query.andWhere('message.author = :userId', { userId: supportRequest.user });
+
+    return query.getCount();
   }
 
-  async subscribe(
-    handler: (supportRequest: SupportRequest, message: Message) => void,
-  ) {
-    this.eventEmitter.on('message.created', handler);
-
-    return () => {
-      this.eventEmitter.off('message.created', handler);
-    };
+  async closeRequest(supportRequestId: number): Promise<void> {
+    const supportRequest = await this.supportRequestRepository.findOne({
+      where: { _id: supportRequestId },
+    });
+    if (!supportRequest) {
+      throw new NotFoundException('Support request not found');
+    }
+    supportRequest.isActive = false;
+    await this.supportRequestRepository.save(supportRequest);
   }
 }
