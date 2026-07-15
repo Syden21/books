@@ -9,7 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { SupportService } from './support.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
@@ -23,7 +23,7 @@ import {
 export class SupportController {
   constructor(private supportService: SupportService) {}
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(SessionAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
   @Post('client/support-requests')
   async createSupportRequest(
@@ -37,7 +37,6 @@ export class SupportController {
 
     const unreadCount = await this.supportService.getUnreadCount(
       supportRequest._id,
-      req.user._id,
     );
 
     return {
@@ -48,7 +47,7 @@ export class SupportController {
     };
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(SessionAuthGuard, RolesGuard)
   @Roles(UserRole.CLIENT)
   @Get('client/support-requests')
   async getClientSupportRequests(
@@ -63,12 +62,9 @@ export class SupportController {
       isActive: isActiveBool,
     });
 
-    const result = [];
+    const result: any[] = [];
     for (const request of requests) {
-      const unreadCount = await this.supportService.getUnreadCount(
-        request._id,
-        req.user._id,
-      );
+      const unreadCount = await this.supportService.getUnreadCount(request._id);
       result.push({
         id: request._id.toString(),
         createdAt: request.createdAt.toISOString(),
@@ -80,7 +76,7 @@ export class SupportController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(SessionAuthGuard, RolesGuard)
   @Roles(UserRole.MANAGER)
   @Get('manager/support-requests')
   async getManagerSupportRequests(@Query('isActive') isActive?: string) {
@@ -88,26 +84,23 @@ export class SupportController {
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
 
     const requests = await this.supportService.findSupportRequests({
-      user: null,
+      user: undefined,
       isActive: isActiveBool,
     });
 
-    const result = [];
+    const result: any[] = [];
     for (const request of requests) {
-      const unreadCount = await this.supportService.getUnreadCount(
-        request._id,
-        request.user,
-      );
+      const unreadCount = await this.supportService.getUnreadCount(request._id);
       result.push({
         id: request._id.toString(),
         createdAt: request.createdAt.toISOString(),
         isActive: request.isActive,
         hasNewMessages: unreadCount > 0,
         client: {
-          id: request.userEntity?._id?.toString(),
-          name: request.userEntity?.name,
-          email: request.userEntity?.email,
-          contactPhone: request.userEntity?.contactPhone,
+          id: request.userEntity?._id?.toString() || '',
+          name: request.userEntity?.name || 'Unknown',
+          email: request.userEntity?.email || '',
+          contactPhone: request.userEntity?.contactPhone || '',
         },
       });
     }
@@ -115,7 +108,7 @@ export class SupportController {
     return result;
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SessionAuthGuard)
   @Get('common/support-requests/:id/messages')
   async getMessages(@Param('id') id: string, @Request() req) {
     const messages = await this.supportService.getMessages(parseInt(id));
@@ -132,7 +125,7 @@ export class SupportController {
     }));
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SessionAuthGuard)
   @Post('common/support-requests/:id/messages')
   async sendMessage(
     @Param('id') id: string,
@@ -161,7 +154,7 @@ export class SupportController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SessionAuthGuard)
   @Post('common/support-requests/:id/messages/read')
   async markMessagesAsRead(
     @Param('id') id: string,

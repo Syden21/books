@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
@@ -30,15 +31,26 @@ export class UsersService implements IUserService {
       throw new ConflictException('User with this email already exists');
     }
 
-    const saltRounds = this.configService.get('BCRYPT_SALT_ROUNDS', 10);
-    const hashedPassword = await bcrypt.hash(data.passwordHash, saltRounds);
+    const saltRounds = this.configService.get<number>('BCRYPT_SALT_ROUNDS', 10);
 
-    const user = this.usersRepository.create({
-      ...data,
+    if (!data.passwordHash) {
+      throw new ConflictException('Password is required');
+    }
+
+    const hashedPassword = await bcrypt.hash(
+      data.passwordHash as string,
+      saltRounds,
+    );
+
+    const userData: Partial<User> = {
+      email: data.email,
       passwordHash: hashedPassword,
+      name: data.name,
+      contactPhone: data.contactPhone || undefined,
       role: data.role || UserRole.CLIENT,
-    });
+    };
 
+    const user = this.usersRepository.create(userData);
     return this.usersRepository.save(user);
   }
 
@@ -89,12 +101,12 @@ export class UsersService implements IUserService {
       .getOne();
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new NotFoundException('Invalid credentials');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     return user;

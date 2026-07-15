@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Library } from './entities/library.entity';
@@ -17,7 +17,11 @@ export class LibrariesService {
   }
 
   async findById(id: number): Promise<Library> {
-    return this.librariesRepository.findOne({ where: { id } });
+    const library = await this.librariesRepository.findOne({ where: { id } });
+    if (!library) {
+      throw new NotFoundException(`Library with id ${id} not found`);
+    }
+    return library;
   }
 
   async findAll(): Promise<Library[]> {

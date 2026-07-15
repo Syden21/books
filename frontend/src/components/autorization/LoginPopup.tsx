@@ -3,28 +3,32 @@ import { createPortal } from "react-dom";
 import FormField from "../FormField";
 import { X } from "lucide-react";
 import RegisterPopup from "./RegisterPopup";
+import { authAPI } from "../../services/api";
+import { toast } from "react-toastify";
 
 interface PopupProps {
   isOpen: boolean;
   setIsOpen: (arg: boolean) => void;
+  onLoginSuccess?: (user: any) => void;
 }
 
-const LoginPopup = ({ isOpen, setIsOpen }: PopupProps) => {
+const LoginPopup = ({ isOpen, setIsOpen, onLoginSuccess }: PopupProps) => {
   const popupRef = useRef<HTMLDivElement>(null);
-  const [username, setUsername] = useState("");
-  const [usernameError, setUsernameError] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
   const resetForm = () => {
-    setUsername("");
+    setEmail("");
     setPassword("");
-    setUsernameError("");
+    setEmailError("");
     setPasswordError("");
+    setLoading(false);
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleClose = () => {
     resetForm();
     setIsOpen(false);
@@ -56,13 +60,17 @@ const LoginPopup = ({ isOpen, setIsOpen }: PopupProps) => {
     };
   }, [isOpen, handleClose]);
 
-  const handleBlur = (field: "username" | "password") => {
-    if (field === "username") {
-      if (!username.trim()) {
-        setUsernameError("Необходимо указать ФИО");
-      } else {
-        setUsernameError("");
-      }
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) return "Email обязателен";
+    if (!emailRegex.test(email)) return "Введите корректный email";
+    return "";
+  };
+
+  const handleBlur = (field: "email" | "password") => {
+    if (field === "email") {
+      const error = validateEmail(email);
+      setEmailError(error);
     } else {
       if (!password.trim()) {
         setPasswordError("Необходимо указать пароль");
@@ -72,16 +80,17 @@ const LoginPopup = ({ isOpen, setIsOpen }: PopupProps) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     let hasError = false;
 
-    if (!username.trim()) {
-      setUsernameError("Необходимо указать ФИО");
+    const emailErrorMsg = validateEmail(email);
+    if (emailErrorMsg) {
+      setEmailError(emailErrorMsg);
       hasError = true;
     } else {
-      setUsernameError("");
+      setEmailError("");
     }
 
     if (!password.trim()) {
@@ -93,7 +102,35 @@ const LoginPopup = ({ isOpen, setIsOpen }: PopupProps) => {
 
     if (hasError) return;
 
-    handleClose();
+    setLoading(true);
+    try {
+      const response = await authAPI.login({ email, password });
+      const { user } = response.data;
+
+      localStorage.setItem('user', JSON.stringify(user));
+
+      toast.success(`Добро пожаловать, ${user.name}!`);
+      resetForm();
+      setIsOpen(false);
+      
+      if (onLoginSuccess) {
+        onLoginSuccess(user);
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      
+      if (error.response?.status === 401) {
+        setPasswordError('Неверный email или пароль');
+        toast.error('Неверный email или пароль');
+      } else if (error.response?.status === 404) {
+        setEmailError('Пользователь не найден');
+        toast.error('Пользователь не найден');
+      } else {
+        toast.error('Ошибка входа. Попробуйте позже.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -116,19 +153,21 @@ const LoginPopup = ({ isOpen, setIsOpen }: PopupProps) => {
                 <form
                   className="flex flex-col items-start px-27.5"
                   onSubmit={handleSubmit}
+                  noValidate
                 >
                   <FormField
-                    id="username"
-                    label="ФИО"
-                    value={username}
-                    error={usernameError}
+                    id="email"
+                    label="Email"
+                    value={email}
+                    error={emailError}
                     onChange={(e) => {
-                      setUsername(e.target.value);
-                      if (e.target.value.trim()) setUsernameError("");
+                      setEmail(e.target.value);
+                      if (e.target.value.trim()) setEmailError("");
                     }}
-                    onBlur={() => handleBlur("username")}
-                    placeholder="Иванов Иван Иванович"
-                    type="text"
+                    onBlur={() => handleBlur("email")}
+                    placeholder="ivanov@mail.ru"
+                    type="email"
+                    disabled={loading}
                   />
 
                   <FormField
@@ -143,18 +182,23 @@ const LoginPopup = ({ isOpen, setIsOpen }: PopupProps) => {
                     onBlur={() => handleBlur("password")}
                     placeholder="Введите пароль"
                     type="password"
+                    disabled={loading}
                   />
 
-                  <button className="self-center w-74 px-6 py-4 box-border border shadow-[4px_4px_0_0_rgba(0,0,0,1)] bg-[rgba(255,195,62,1)] cursor-pointer rounded-2xl hover:shadow-none active:shadow-none active:bg-[rgba(244,148,37,1)] disabled:shadow-none disabled:bg-[rgba(152,164,155,1)] disabled:text-[rgba(105,120,108,1)] disabled:cursor-not-allowed">
-                    Войти
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="self-center w-74 px-6 py-4 box-border border shadow-[4px_4px_0_0_rgba(0,0,0,1)] bg-[rgba(255,195,62,1)] cursor-pointer rounded-2xl hover:shadow-none active:shadow-none active:bg-[rgba(244,148,37,1)] disabled:shadow-none disabled:bg-[rgba(152,164,155,1)] disabled:text-[rgba(105,120,108,1)] disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Вход..." : "Войти"}
                   </button>
                 </form>
 
                 <p className="my-16.25 text-[16px] font-semibold leading-[120%]">
                   Нет аккаунта?{" "}
                   <span
-                    className="cursor-pointer hover:underline"
-                    onClick={() => handleRegister()}
+                    className="cursor-pointer hover:underline text-blue-600"
+                    onClick={handleRegister}
                   >
                     Зарегистрироваться
                   </span>
@@ -170,6 +214,11 @@ const LoginPopup = ({ isOpen, setIsOpen }: PopupProps) => {
         isOpen={isRegisterOpen}
         onClose={() => setIsRegisterOpen(false)}
         onBackToLogin={handleBackToLogin}
+        onSuccess={() => {
+          setIsRegisterOpen(false);
+          setIsOpen(true);
+          toast.info('Теперь войдите с новыми данными');
+        }}
       />
     </>
   );

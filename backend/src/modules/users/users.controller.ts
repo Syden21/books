@@ -1,16 +1,8 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  UseGuards,
-  Request,
-  Query,
-} from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from './entities/user.entity';
@@ -19,7 +11,7 @@ import { UserRole } from './entities/user.entity';
 export class UsersController {
   constructor(private usersService: UsersService) {}
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(SessionAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Post('admin/users')
   async createUser(@Body() createUserDto: CreateUserDto) {
@@ -40,7 +32,7 @@ export class UsersController {
     };
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(SessionAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get('admin/users')
   async getUsersAdmin(@Query() searchParams: SearchUserDto) {
@@ -54,7 +46,7 @@ export class UsersController {
     }));
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(SessionAuthGuard, RolesGuard)
   @Roles(UserRole.MANAGER)
   @Get('manager/users')
   async getUsersManager(@Query() searchParams: SearchUserDto) {

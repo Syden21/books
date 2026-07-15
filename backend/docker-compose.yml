@@ -5,8 +5,8 @@ services:
     image: postgres:15-alpine
     container_name: library_postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-libraryAdmin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-libraryAdmin123}
+      POSTGRES_USER: ${POSTGRES_USER:-library_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
       POSTGRES_DB: ${POSTGRES_DB:-BookReservation}
     ports:
       - "5432:5432"
@@ -29,11 +29,11 @@ services:
       HTTP_PORT: ${HTTP_PORT:-3000}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_USER: ${POSTGRES_USER:-libraryAdmin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-libraryAdmin123}
+      POSTGRES_USER: ${POSTGRES_USER:-library_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
       POSTGRES_DB: ${POSTGRES_DB:-BookReservation}
-      JWT_SECRET: ${JWT_SECRET:-4%iFf$KX1#PrmEOM^^U)n:6_]^*|6&!*qR8t*SF3snN^UebjV#%_AlgP2Aj)&(txJWT_EXPIRES_IN=7d_min_32_characters}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      SESSION_SECRET: GLENRO%<LTBFrvG@$=6SOA#1LG]EMwHyjD<4@&1MH.C(Lh+W:X9+<#B)SumD9B.@
+      SESSION_MAX_AGE: 604800000
       BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-10}
     ports:
       - "3000:3000"

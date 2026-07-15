@@ -15,26 +15,14 @@ import { SupportModule } from './modules/support/support.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env.local',
-      validationSchema,
-      validationOptions: {
-        abortEarly: true,
-      },
+      envFilePath: '.env',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: getDatabaseConfig,
       inject: [ConfigService],
     }),
-    EventEmitterModule.forRoot({
-      wildcard: false,
-      delimiter: '.',
-      newListener: false,
-      removeListener: false,
-      maxListeners: 10,
-      verboseMemoryLeak: false,
-      ignoreErrors: false,
-    }),
+    EventEmitterModule.forRoot(),
     UsersModule,
     AuthModule,
     LibrariesModule,

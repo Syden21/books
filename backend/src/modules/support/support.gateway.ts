@@ -42,7 +42,10 @@ export class SupportGateway
       if (!this.userSockets.has(userIdNum)) {
         this.userSockets.set(userIdNum, []);
       }
-      this.userSockets.get(userIdNum).push(client.id);
+      const sockets = this.userSockets.get(userIdNum);
+      if (sockets) {
+        sockets.push(client.id);
+      }
       client.join(`user_${userIdNum}`);
     }
   }

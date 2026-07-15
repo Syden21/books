@@ -9,20 +9,25 @@ import { Message } from '../modules/support/entities/message.entity';
 
 export const getDatabaseConfig = (
   configService: ConfigService,
-): TypeOrmModuleOptions => ({
-  type: 'postgres',
-  host: configService.get<string>('POSTGRES_HOST', 'localhost'),
-  port: configService.get<number>('POSTGRES_PORT', 5432),
-  username: configService.get<string>('POSTGRES_USER', 'libraryAdmin'),
-  password: configService.get<string>('POSTGRES_PASSWORD', 'libraryAdmin123'),
-  database: configService.get<string>('POSTGRES_DB', 'BookReservation'),
-  entities: [User, Library, Book, Rental, SupportRequest, Message],
-  synchronize: configService.get<string>('NODE_ENV') !== 'production',
-  logging: configService.get<string>('NODE_ENV') === 'development',
-  retryAttempts: 5,
-  retryDelay: 3000,
-  ssl:
-    configService.get<string>('NODE_ENV') === 'production'
-      ? { rejectUnauthorized: false }
-      : false,
-});
+): TypeOrmModuleOptions => {
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const isProduction = nodeEnv === 'production';
+
+  const password = configService.get<string>('POSTGRES_PASSWORD');
+  const finalPassword = password || '123456';
+
+  return {
+    type: 'postgres' as const,
+    host: configService.get<string>('POSTGRES_HOST', 'localhost'),
+    port: configService.get<number>('POSTGRES_PORT', 5432),
+    username: configService.get<string>('POSTGRES_USER', 'library_user'),
+    password: finalPassword,
+    database: configService.get<string>('POSTGRES_DB', 'BookReservation'),
+    entities: [User, Library, Book, Rental, SupportRequest, Message],
+    synchronize: true,
+    logging: true,
+    retryAttempts: 5,
+    retryDelay: 3000,
+    ssl: isProduction ? { rejectUnauthorized: false } : false,
+  };
+};

@@ -96,7 +96,7 @@ export class RentalsService {
   async findByUser(userId: number): Promise<Rental[]> {
     return this.rentalsRepository.find({
       where: { userId },
-      relations: ['book', 'library'],
+      relations: { book: true, library: true },
       order: { createdAt: 'DESC' },
     });
   }

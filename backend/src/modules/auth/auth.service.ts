@@ -1,30 +1,23 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
-  ) {}
+  constructor(private usersService: UsersService) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    try {
-      const user = await this.usersService.validatePassword(email, password);
-      const { passwordHash, ...result } = user;
-      return result;
-    } catch {
+    const user = await this.usersService.validatePassword(email, password);
+    if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    const { passwordHash, ...result } = user;
+    return result;
   }
 
   async login(user: User) {
-    const payload = { sub: user._id, email: user.email, role: user.role };
     return {
-      access_token: this.jwtService.sign(payload),
       user: {
         id: user._id,
         email: user.email,
@@ -47,7 +40,28 @@ export class AuthService {
     return user;
   }
 
-  async logout(): Promise<void> {
-    return;
+  async logout(req: any): Promise<void> {
+    return new Promise((resolve, reject) => {
+      req.logout((err: any) => {
+        if (err) {
+          reject(err);
+        } else {
+          req.session.destroy((err: any) => {
+            if (err) {
+              reject(err);
+            } else {
+              if (req.res) {
+                req.res.clearCookie('library.sid');
+              }
+              resolve();
+            }
+          });
+        }
+      });
+    });
+  }
+
+  async getSessionUser(req: any): Promise<User | null> {
+    return req.user || null;
   }
 }

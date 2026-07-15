@@ -9,6 +9,7 @@ import Search from "./pages/Search.tsx";
 import NotFound from "./pages/404NotFound.tsx";
 import BookReservation from "./pages/BookReservation.tsx";
 import ConfirmReservation from "./pages/ConfirmReservation.tsx";
+import { ToastContainer } from "react-toastify";
 
 const router = createBrowserRouter([
   {
@@ -35,6 +36,18 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
     <RouterProvider router={router} />
   </StrictMode>,
 );

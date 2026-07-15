@@ -1,15 +1,17 @@
-import plural from "plural-ru";
+//import plural from "plural-ru";
 
 interface SearchBookCardProps {
+  name: string;
   author: string;
   year: number;
   description: string;
   image: string;
   alt: string;
-  library: number;
+  library: string;
 }
 
 const SearchBookCard = ({
+  name,
   author,
   year,
   description,
@@ -23,7 +25,7 @@ const SearchBookCard = ({
         <img src={image} alt={alt} className="w-25 h-35 object-cover" />
         <div>
           <h2 className="font-semibold text-[18px] leading-[120%] mb-4">
-            JavaScript для детей
+            {name}
           </h2>
           <div className="flex flex-col gap-2 mb-13.5">
             <div className="flex gap-4 items-center">
@@ -45,14 +47,14 @@ const SearchBookCard = ({
               <p className="text-[14px] leading-[120%]">{description}</p>
             </div>
             <p className="text-[rgba(147,164,151,1)] text-[14px] leading-[120%]">
-              Доступна в {plural(library, "%d библиотеке", "%d библиотеках")}
+              {library}
             </p>
           </div>
         </div>
       </div>
       <button
         className="font-semibold w-89.25 px-6 py-4 box-border border shadow-[4px_4px_0_0_rgba(0,0,0,1)] bg-[rgba(255,195,62,1)] cursor-pointer rounded-2xl hover:shadow-none active:shadow-none active:bg-[rgba(244,148,37,1)] disabled:shadow-none disabled:bg-[rgba(152,164,155,1)] disabled:text-[rgba(105,120,108,1)] disabled:cursor-not-allowed"
-        disabled={library === 0}
+        
       >
         Забронировать
       </button>

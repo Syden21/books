@@ -53,7 +53,10 @@ export class SupportService
 
     return this.supportRequestRepository.find({
       where,
-      relations: ['messages', 'userEntity'],
+      relations: {
+        messages: true,
+        userEntity: true,
+      },
       order: { createdAt: 'DESC' },
     });
   }
@@ -98,7 +101,7 @@ export class SupportService
   async getMessages(supportRequestId: number): Promise<Message[]> {
     return this.messageRepository.find({
       where: { supportRequestId },
-      relations: ['authorEntity'],
+      relations: { authorEntity: true },
       order: { sentAt: 'ASC' },
     });
   }
@@ -167,37 +170,13 @@ export class SupportService
     await query.execute();
   }
 
-  async getUnreadCount(
-    supportRequestId: number,
-    userId: number,
-  ): Promise<number> {
-    const userEntity = await this.userRepository.findOne({
-      where: { _id: userId },
-    });
-    if (!userEntity) {
-      throw new NotFoundException('User not found');
-    }
-
+  async getUnreadCount(supportRequestId: number): Promise<number> {
     const query = this.messageRepository
       .createQueryBuilder('message')
       .where('message.supportRequestId = :supportRequestId', {
         supportRequestId,
       })
       .andWhere('message.readAt IS NULL');
-
-    if (userEntity.role === UserRole.CLIENT) {
-      const employees = await this.userRepository.find({
-        where: [{ role: UserRole.ADMIN }, { role: UserRole.MANAGER }],
-      });
-      const employeeIds = employees.map((e) => e._id);
-      if (employeeIds.length > 0) {
-        query.andWhere('message.author IN (:...employeeIds)', { employeeIds });
-      } else {
-        return 0;
-      }
-    } else {
-      query.andWhere('message.author = :userId', { userId });
-    }
 
     return query.getCount();
   }

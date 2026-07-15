@@ -5,12 +5,15 @@ import {
   UseGuards,
   Request,
   Get,
+  Res,
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { SessionAuthGuard } from './guards/session-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { Response } from 'express';
 
 @Controller('api')
 export class AuthController {
@@ -32,14 +35,20 @@ export class AuthController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SessionAuthGuard)
   @Post('auth/logout')
-  async logout() {
-    await this.authService.logout();
-    return {};
+  async logout(@Request() req, @Res() res: Response) {
+    try {
+      await this.authService.logout(req);
+      return res.status(HttpStatus.OK).json({});
+    } catch (error) {
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        message: 'Logout failed',
+      });
+    }
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SessionAuthGuard)
   @Get('auth/profile')
   getProfile(@Request() req) {
     const user = req.user;

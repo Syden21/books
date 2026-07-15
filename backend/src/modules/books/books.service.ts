@@ -17,14 +17,16 @@ export class BooksService {
   ) {}
 
   async create(data: CreateBookDto): Promise<Book> {
-    if (data.totalCopies < 1) {
+    const totalCopies = data.totalCopies || 1;
+
+    if (totalCopies < 1) {
       throw new BadRequestException('totalCopies must be at least 1');
     }
 
     const book = this.booksRepository.create({
       ...data,
       availableCopies: data.totalCopies,
-      isAvailable: data.totalCopies > 0,
+      isAvailable: totalCopies > 0,
     });
 
     return this.booksRepository.save(book);
@@ -33,7 +35,9 @@ export class BooksService {
   async findById(id: number): Promise<Book> {
     const book = await this.booksRepository.findOne({
       where: { id },
-      relations: ['library'],
+      relations: {
+        library: true,
+      },
     });
     if (!book) {
       throw new NotFoundException(`Book with id ${id} not found`);
