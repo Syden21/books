@@ -12,7 +12,6 @@ import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { SessionAuthGuard } from './guards/session-auth.guard';
 import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
 import { Response } from 'express';
 
 @Controller('api')
@@ -21,8 +20,13 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('auth/login')
-  async login(@Request() req, @Body() loginDto: LoginDto) {
-    return this.authService.login(req.user);
+  async login(@Request() req) {
+    return new Promise((resolve, reject) => {
+      req.login(req.user, (err) => {
+        if (err) return reject(err);
+        resolve(this.authService.login(req.user));
+      });
+    });
   }
 
   @Post('client/register')
@@ -51,13 +55,6 @@ export class AuthController {
   @UseGuards(SessionAuthGuard)
   @Get('auth/profile')
   getProfile(@Request() req) {
-    const user = req.user;
-    return {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      contactPhone: user.contactPhone,
-      role: user.role,
-    };
+    return req.user;
   }
 }

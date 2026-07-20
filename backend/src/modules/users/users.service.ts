@@ -94,6 +94,7 @@ export class UsersService implements IUserService {
   }
 
   async validatePassword(email: string, password: string): Promise<User> {
+    console.log('🔍 UsersService.validatePassword called with:', email);
     const user = await this.usersRepository
       .createQueryBuilder('user')
       .addSelect('user.passwordHash')
@@ -101,11 +102,13 @@ export class UsersService implements IUserService {
       .getOne();
 
     if (!user) {
+      console.warn('⚠️ User not found:', email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
+      console.warn('⚠️ Invalid password for:', email);
       throw new UnauthorizedException('Invalid credentials');
     }
 

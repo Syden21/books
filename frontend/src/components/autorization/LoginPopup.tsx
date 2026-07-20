@@ -107,26 +107,24 @@ const LoginPopup = ({ isOpen, setIsOpen, onLoginSuccess }: PopupProps) => {
       const response = await authAPI.login({ email, password });
       const { user } = response.data;
 
-      localStorage.setItem('user', JSON.stringify(user));
-
       toast.success(`Добро пожаловать, ${user.name}!`);
       resetForm();
       setIsOpen(false);
-      
+
       if (onLoginSuccess) {
         onLoginSuccess(user);
       }
     } catch (error: any) {
-      console.error('Login error:', error);
-      
+      console.error("Login error:", error);
+
       if (error.response?.status === 401) {
-        setPasswordError('Неверный email или пароль');
-        toast.error('Неверный email или пароль');
+        setPasswordError("Неверный email или пароль");
+        toast.error("Неверный email или пароль");
       } else if (error.response?.status === 404) {
-        setEmailError('Пользователь не найден');
-        toast.error('Пользователь не найден');
+        setEmailError("Пользователь не найден");
+        toast.error("Пользователь не найден");
       } else {
-        toast.error('Ошибка входа. Попробуйте позже.');
+        toast.error("Ошибка входа. Попробуйте позже.");
       }
     } finally {
       setLoading(false);
@@ -217,7 +215,7 @@ const LoginPopup = ({ isOpen, setIsOpen, onLoginSuccess }: PopupProps) => {
         onSuccess={() => {
           setIsRegisterOpen(false);
           setIsOpen(true);
-          toast.info('Теперь войдите с новыми данными');
+          toast.info("Теперь войдите с новыми данными");
         }}
       />
     </>

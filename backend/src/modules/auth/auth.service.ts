@@ -8,12 +8,15 @@ export class AuthService {
   constructor(private usersService: UsersService) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.validatePassword(email, password);
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+    console.log('🔍 AuthService.validateUser called with:', email);
+    try {
+      const user = await this.usersService.validatePassword(email, password);
+      const { passwordHash, ...result } = user;
+      return result;
+    } catch (error: any) {
+      console.error('❌ AuthService.validateUser error:', error.message);
+      throw error;
     }
-    const { passwordHash, ...result } = user;
-    return result;
   }
 
   async login(user: User) {

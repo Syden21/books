@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { validationSchema } from './config/validation.config';
 import { getDatabaseConfig } from './config/database.config';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -10,6 +9,7 @@ import { LibrariesModule } from './modules/libraries/libraries.module';
 import { BooksModule } from './modules/books/books.module';
 import { RentalsModule } from './modules/rentals/rentals.module';
 import { SupportModule } from './modules/support/support.module';
+import { SessionSerializer } from './modules/auth/session.serializer';
 
 @Module({
   imports: [
@@ -30,5 +30,6 @@ import { SupportModule } from './modules/support/support.module';
     RentalsModule,
     SupportModule,
   ],
+  providers: [SessionSerializer],
 })
 export class AppModule {}

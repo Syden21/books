@@ -2,13 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
-import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import * as session from 'express-session';
 import * as pgSession from 'connect-pg-simple';
 import * as passport from 'passport';
+import { config } from 'dotenv';
 
 const PgStore = pgSession(session);
+config();
 
 async function bootstrap() {
   try {
@@ -16,13 +17,6 @@ async function bootstrap() {
     console.log('NODE_ENV:', process.env.NODE_ENV);
 
     const app = await NestFactory.create(AppModule);
-    const configService = app.get(ConfigService);
-
-    console.log('📋 Environment variables:');
-    console.log('POSTGRES_HOST:', configService.get('POSTGRES_HOST'));
-    console.log('POSTGRES_PORT:', configService.get('POSTGRES_PORT'));
-    console.log('POSTGRES_USER:', configService.get('POSTGRES_USER'));
-    console.log('POSTGRES_DB:', configService.get('POSTGRES_DB'));
 
     try {
       const dataSource = app.get(DataSource);
@@ -33,26 +27,42 @@ async function bootstrap() {
       console.log('⚠️  Continuing without database...');
     }
 
-    const isProduction = configService.get('NODE_ENV') === 'production';
-    const sessionSecret = configService.get('SESSION_SECRET');
+    const isProduction = process.env.NODE_ENV === 'production';
+    const sessionSecret = process.env.SESSION_SECRET;
 
     if (!sessionSecret) {
       console.warn('⚠️  SESSION_SECRET not found, using default');
     }
 
     console.log('🔧 Setting up session...');
+
+    console.log('Тип пароля:', typeof process.env.POSTGRES_PASSWORD);
+    console.log('Значение пароля:', process.env.POSTGRES_PASSWORD);
+
+    const pgHost = process.env.POSTGRES_HOST || 'localhost';
+    const pgPort = process.env.POSTGRES_PORT || '5432';
+    const pgUser = process.env.POSTGRES_USER || 'postgres';
+    const pgPassword = process.env.POSTGRES_PASSWORD || '';
+    const pgDb = process.env.POSTGRES_DB || 'library_db';
+
+    const connectionString = pgPassword
+      ? `postgres://${pgUser}:${encodeURIComponent(pgPassword)}@${pgHost}:${pgPort}/${pgDb}`
+      : `postgres://${pgUser}@${pgHost}:${pgPort}/${pgDb}`;
+
+    const pgStore = new PgStore({
+      conString: connectionString,
+      tableName: 'session',
+      createTableIfMissing: true,
+    });
+
     app.use(
       session({
-        store: new PgStore({
-          conString: `postgresql://${configService.get('POSTGRES_USER')}:${configService.get('POSTGRES_PASSWORD')}@${configService.get('POSTGRES_HOST')}:${configService.get('POSTGRES_PORT')}/${configService.get('POSTGRES_DB')}`,
-          tableName: 'session',
-          createTableIfMissing: true,
-        }),
-        secret: sessionSecret || 'default_session_secret_key',
+        store: pgStore,
+        secret:
+          sessionSecret || 'default_session_secret_key_must_be_long_enough',
         resave: false,
         saveUninitialized: false,
         cookie: {
-          maxAge: parseInt(configService.get('SESSION_MAX_AGE', '604800000')),
           secure: isProduction,
           httpOnly: true,
           sameSite: 'lax' as const,
@@ -83,8 +93,8 @@ async function bootstrap() {
       credentials: true,
     });
 
-    const host = configService.get<string>('HTTP_HOST', '0.0.0.0');
-    const port = configService.get<number>('HTTP_PORT', 3000);
+    const host = process.env.HTTP_HOST || '0.0.0.0';
+    const port = process.env.HTTP_PORT || 3000;
 
     console.log(`🌐 Starting server on ${host}:${port}...`);
     await app.listen(port, host);
