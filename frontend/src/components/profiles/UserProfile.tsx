@@ -1,19 +1,26 @@
 import { House, LibraryBig, LogOut, UserRound } from "lucide-react";
 import Avatar from "./Avatar";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const UserProfile = () => {
   const [activeItem, setActiveItem] = useState("Главная");
+  const navigate = useNavigate();
 
   const menuItems = [
-    { id: "Главная", icon: House },
-    { id: "Мои книги", icon: LibraryBig },
-    { id: "Профиль", icon: UserRound },
+    { id: "Главная", icon: House, path: "/profile" },
+    { id: "Мои книги", icon: LibraryBig, path: "/profile/my-books" },
+    { id: "Профиль", icon: UserRound, path: "/profile/info" },
   ];
+
+  const handleMenuItemClick = (item: { id: string; path: string }) => {
+    setActiveItem(item.id);
+    navigate(item.path);
+  };
 
   return (
     <div className="flex gap-20">
-      <div className="ml-[319px] bg-[rgba(214,234,216,1)] box-border rounded-[32px] border w-[329px] min-h-screen">
+      <div className="ml-[319px] bg-[rgba(214,234,216,1)] box-border rounded-[32px] border w-[329px] h-[914px]">
         <div className="px-[75px] pt-10 flex flex-col items-center gap-4 mb-10">
           <Avatar name="Иванов Иван Иванович" size="xxl" />
           <p className="font-semibold text-[16px] leading-[120%]">
@@ -26,7 +33,7 @@ const UserProfile = () => {
               <li
                 key={item.id}
                 className={`flex gap-4 cursor-pointer ${activeItem === item.id ? "text-[rgba(244,148,37,1)]" : "text-black"}`}
-                onClick={() => setActiveItem(item.id)}
+                onClick={() => handleMenuItemClick(item)}
               >
                 <item.icon />
                 {item.id}

@@ -10,3 +10,25 @@
 body {
   background: var(--bg, rgba(246, 255, 247, 1));
 }
+
+.tab-item {
+  position: relative;
+  cursor: pointer;
+  padding-bottom: 4px;
+}
+
+.tab-item::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background-color: rgba(244, 148, 37, 1);
+  transition: width 0.3s ease;
+}
+
+.tab-item.active::after {
+  width: 100%;
+}

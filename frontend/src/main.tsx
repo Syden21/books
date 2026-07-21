@@ -11,6 +11,8 @@ import BookReservation from "./pages/BookReservation.tsx";
 import ConfirmReservation from "./pages/ConfirmReservation.tsx";
 import { ToastContainer } from "react-toastify";
 import UserProfile from "./components/profiles/UserProfile.tsx";
+import MyBooks from "./components/profiles/MyBooks.tsx";
+import ProfileInfo from "./components/profiles/ProfileInfo.tsx";
 
 const router = createBrowserRouter([
   {
@@ -32,6 +34,14 @@ const router = createBrowserRouter([
   {
     path: "/profile",
     element: <UserProfile />,
+  },
+  {
+    path: "/profile/my-books",
+    element: <MyBooks />,
+  },
+  {
+    path: "/profile/info",
+    element: <ProfileInfo />,
   },
 ]);
 
