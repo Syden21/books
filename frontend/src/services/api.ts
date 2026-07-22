@@ -50,6 +50,12 @@ export const authAPI = {
   }) => api.post("/api/client/register", data),
   logout: () => api.post("/api/auth/logout"),
   profile: () => api.get("/api/auth/profile"),
+  updateProfile: (data: FormData) =>
+    api.put("/api/auth/profile", data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
 };
 
 export const userAPI = {
@@ -95,6 +101,7 @@ export const rentalAPI = {
     dateStart: string;
     dateEnd: string;
   }) => api.post("/api/client/rentals", data),
+  getMyRentals: () => api.get("/api/client/rentals"),
 };
 
 export const supportAPI = {

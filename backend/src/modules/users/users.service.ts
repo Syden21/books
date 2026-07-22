@@ -93,6 +93,15 @@ export class UsersService implements IUserService {
     });
   }
 
+  async update(id: number, data: Partial<User>): Promise<void> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException(`User with id ${id} not found`);
+    }
+    Object.assign(user, data);
+    await this.usersRepository.save(user);
+  }
+
   async validatePassword(email: string, password: string): Promise<User> {
     console.log('🔍 UsersService.validatePassword called with:', email);
     const user = await this.usersRepository

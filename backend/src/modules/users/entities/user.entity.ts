@@ -37,4 +37,7 @@ export class User {
 
   @OneToMany(() => Message, (message) => message.author)
   messages: Message[];
+
+  @Column({ name: 'avatarUrl', nullable: true, length: 255 })
+  avatarUrl?: string;
 }
